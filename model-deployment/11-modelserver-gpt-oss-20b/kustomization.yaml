@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: llm-d-system
+
+resources:
+  - ../../llm-d/guides/recipes/modelserver/base/single-host/default
+
+# vLLM image pin lives in llm-d's own component so a repo bump carries here too
+components:
+  - ../../llm-d/guides/recipes/modelserver/components/images/gpu-vllm/release
+  # PodMonitor scraping vLLM's own /metrics (KV cache usage, queue depth,
+  # prefix cache hit rate). Requires the Prometheus Operator CRDs.
+  - ../../llm-d/guides/recipes/modelserver/components/monitoring
+
+namePrefix: gpt-oss-20b-
+
+# llm-d.ai/model is the InferencePool selector - it MUST be unique per pool,
+# otherwise the two pools cross-select each other's pods.
+labels:
+  - pairs:
+      llm-d.ai/model: gpt-oss-20b
+    includeSelectors: true
+    includeTemplates: true
+
+patches:
+  - path: patch-vllm.yaml

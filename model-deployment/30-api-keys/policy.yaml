@@ -1,0 +1,23 @@
+# Gateway-wide API key authentication.
+#
+# `location` is deliberately omitted: the default is the `Authorization` header
+# with a `Bearer ` prefix, which is exactly what OpenAI-compatible clients send.
+# mode: Strict rejects requests with a missing or unknown key.
+#
+# Keys live in the llm-api-keys Secret, one entry per client, stored as
+# sha256 hashes. Mint them with bin/gen-api-key.sh - do not hand-edit.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: api-key-auth
+  namespace: llm-d-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+  traffic:
+    apiKeyAuthentication:
+      secretRef:
+        name: llm-api-keys
+      mode: Strict

@@ -1,0 +1,52 @@
+## llm-d router (EPP + InferencePool) for the 'qwen3-8b' pool.
+## Layer on top of llm-d/guides/recipes/router/base.values.yaml.
+##
+## Deliberately NO httpRoute: routing is done by AgentgatewayModel matching the
+## request body's "model" field (see ../20-gateway-routing/). A pool-level
+## catch-all HTTPRoute would shadow that.
+router:
+  extraServicePorts:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 8081
+
+  epp:
+    pluginsConfigFile: "plugins.yaml"
+    pluginsCustomConfig:
+      plugins.yaml: |
+        apiVersion: llm-d.ai/v1alpha1
+        kind: EndpointPickerConfig
+        # Same plugin set as llm-d's optimized-baseline guide.
+        plugins:
+        - type: approx-prefix-cache-producer
+        - type: inflight-load-producer
+        - type: prefix-cache-affinity-filter
+          parameters:
+            # Measured on this cluster with
+            # llm-d/guides/recipes/router/calibration/calibrate.sh, aimed at a
+            # single vLLM pod (CHUNK_SIZE=2048, n=20). The plugin default of
+            # 15928 is for Qwen3-32B on H100 TP=2 and overstates this hardware
+            # by ~4.5x, which would make the filter think every endpoint is far
+            # less loaded than it is.
+            # dense 8B bf16, TP=1 on one L4
+            peakPrefillThroughput: 3516
+        - type: token-load-scorer
+        schedulingProfiles:
+        - name: default
+          plugins:
+          - pluginRef: prefix-cache-affinity-filter
+          - pluginRef: token-load-scorer
+    # Trimmed from the chart default of 4 CPU / 8Gi: there are two EPPs now and
+    # the four vLLM pods need the CPU more than the schedulers do.
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        memory: 8Gi
+
+  # Must be unique per pool, and must match the overlay's llm-d.ai/model label.
+  modelServers:
+    matchLabels:
+      llm-d.ai/model: qwen3-8b

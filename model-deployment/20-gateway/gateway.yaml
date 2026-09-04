@@ -1,0 +1,49 @@
+# Derived from llm-d/guides/recipes/gateway/agentgateway, with one addition that
+# recipe does not make: allowedRoutes.kinds must name AgentgatewayModel, or the
+# models attach with Accepted=False / NotAllowedByListeners and every request
+# gets "route not found". A listener's default supportedKinds is HTTPRoute +
+# GRPCRoute only.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: llm-d-inference-gateway
+  namespace: llm-d-system
+spec:
+  gatewayClassName: agentgateway
+  infrastructure:
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: llm-d-gateway-params
+  listeners:
+    - name: default
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+          - group: agentgateway.dev
+            kind: AgentgatewayModel
+    # HTTPS. The certificateRef secret is created by cert-manager (see ../40-tls);
+    # until the ACME order completes this listener reports Programmed=False while
+    # the HTTP listener keeps serving. API keys travel in the Authorization
+    # header, so move clients to https:// as soon as the cert is Ready.
+    - name: https
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: llm-d-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+          - group: agentgateway.dev
+            kind: AgentgatewayModel

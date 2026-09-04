@@ -1,0 +1,42 @@
+# Pins the Gateway's Service so the endpoint is stable and reachable from
+# outside the VPC.
+#
+# externalIPs is the key line: MetalLB's VIP (172.31.32.240) is not assigned to
+# the EC2 ENI, so it is unreachable from the internet. Listing the node's own
+# private IP as an externalIP makes kube-proxy answer on 172.31.32.97:80/443,
+# which the Elastic IP 3.35.241.155 NATs to - so the gateway is served on the
+# standard ports with no extra proxy.
+#
+# nodePorts are pinned too, so http://172.31.32.97:30080 keeps working across
+# recreates for in-VPC callers.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: llm-d-gateway-params
+  namespace: llm-d-system
+spec:
+  service:
+    spec:
+      type: LoadBalancer
+      externalIPs:
+        - 172.31.32.97
+      ports:
+        - name: listener-80
+          port: 80
+          targetPort: 80
+          protocol: TCP
+          nodePort: 30080
+        - name: listener-443
+          port: 443
+          targetPort: 443
+          protocol: TCP
+          nodePort: 30443
+  # The admin listener - UI at /ui, plus /config_dump and a PUT-able /logging -
+  # binds 127.0.0.1:15000 by default. That is the container's own loopback, so no
+  # Service can reach it and kubectl port-forward is the only way in. Binding all
+  # interfaces makes it routable; see ../50-admin-ui/ for what fronts it and how
+  # it is authenticated. Note this also makes it reachable from any pod in the
+  # cluster, not just from the ingress path.
+  env:
+    - name: ADMIN_ADDR
+      value: 0.0.0.0:15000

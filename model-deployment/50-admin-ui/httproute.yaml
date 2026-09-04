@@ -1,0 +1,26 @@
+# Admin UI on its own hostname rather than a path prefix. sslip.io resolves any
+# label in front of the embedded IP, so admin.3-35-241-155.sslip.io -> 3.35.241.155
+# with no DNS to register. A dedicated hostname means every admin path (/ui,
+# /ui/assets/..., /config_dump, /logging) routes here without enumerating them,
+# and it keeps the model routes and the console cleanly separated.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-ui
+  namespace: llm-d-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+      sectionName: https          # TLS only - never serve the console over :80
+  hostnames:
+    - admin.3-35-241-155.sslip.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: agentgateway-admin
+          port: 15000

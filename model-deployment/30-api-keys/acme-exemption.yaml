@@ -1,0 +1,24 @@
+# The Gateway-wide api-key policy also covers cert-manager's ACME solver route,
+# so Let's Encrypt got 401 instead of 200 and the order stalled with
+#   "Waiting for HTTP-01 challenge propagation: wrong status code '401'"
+#
+# This policy re-attaches apiKeyAuthentication in Optional mode to just the
+# solver route, selected by the label cert-manager puts on it. The route matches
+# one exact, single-use /.well-known/acme-challenge/<token> path, so the
+# exemption cannot be used to reach any model.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: acme-http01-exemption
+  namespace: llm-d-system
+spec:
+  targetSelectors:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      matchLabels:
+        acme.cert-manager.io/http01-solver: "true"
+  traffic:
+    apiKeyAuthentication:
+      secretRef:
+        name: llm-api-keys
+      mode: Optional

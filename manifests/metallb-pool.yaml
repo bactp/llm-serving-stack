@@ -1,0 +1,25 @@
+# L2 mode on a single AWS node. These IPs are NOT assigned to the EC2 ENI, so they
+# are reachable from the node itself (local ARP + local routing) but not from
+# elsewhere in the VPC. That is enough to exercise the agentgateway Gateway; for
+# external access use `kubectl port-forward` or an ALB/NLB in front of a NodePort.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: llm-d-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 172.31.32.240-172.31.32.249
+  autoAssign: true
+  avoidBuggyIPs: true
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: llm-d-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - llm-d-pool
+  interfaces:
+    - enp39s0

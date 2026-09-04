@@ -1,0 +1,33 @@
+# The Gateway-wide policy expects `Authorization: Bearer <api key>`, which a
+# browser cannot send. This policy attaches to the admin route only and swaps in
+# HTTP Basic, so the browser prompts. Same override mechanism as the ACME
+# exemption in ../30-api-keys/acme-exemption.yaml.
+#
+# This console exposes the full translated config via /config_dump and accepts
+# PUT on /logging. Basic auth over TLS is the floor, not the ceiling -
+# agentgateway's own docs recommend OIDC for anything beyond localhost. Consider
+# narrowing the security group on 443 to known source IPs as well.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: admin-ui-basic-auth
+  namespace: llm-d-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: admin-ui
+  traffic:
+    # Policies from different attachment points MERGE - the Gateway-wide
+    # api-key policy still ran here and answered "no API Key found" even when
+    # Basic succeeded. Restating it in Optional mode at the route level is what
+    # actually relaxes it.
+    apiKeyAuthentication:
+      secretRef:
+        name: llm-api-keys
+      mode: Optional
+    basicAuthentication:
+      secretRef:
+        name: agentgateway-admin-auth
+      realm: agentgateway admin
+      mode: Strict

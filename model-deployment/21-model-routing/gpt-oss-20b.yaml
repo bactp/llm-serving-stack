@@ -1,0 +1,67 @@
+# Maps the OpenAI-style "model" field in the request body onto an llm-d
+# InferencePool, so clients need nothing but base_url + api_key + model name.
+#
+# provider: Custom + custom.backendRef is the only shape that can target an
+# InferencePool; the named providers (OpenAI, Bedrock, ...) all talk to a
+# vendor endpoint instead.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: gpt-oss-20b
+  namespace: llm-d-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+      # https listener ONLY. Bound to the Gateway as a whole, these model routes
+      # also answer on :80 and they out-prioritise the catch-all redirect
+      # HTTPRoute, so API keys would keep crossing the internet in cleartext.
+      sectionName: https
+  match:
+    model: gpt-oss-20b
+  provider: Custom
+  custom:
+    # vLLM's OpenAI-compatible server. `formats` is required and declares which
+    # provider-native API shapes this backend speaks; enum is
+    # Completions | Responses | Embeddings | Messages | Rerank | Realtime |
+    # AnthropicTokenCount. Add Responses/Embeddings here if you start using them.
+    formats:
+      - type: Completions
+    backendRef:
+      group: inference.networking.k8s.io
+      kind: InferencePool
+      name: gpt-oss-20b
+  visibility: Public
+---
+# Second resource so the HuggingFace id keeps working as an alias. vLLM is
+# started with --served-model-name "gpt-oss-20b" "openai/gpt-oss-20b", so it answers to both.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayModel
+metadata:
+  name: gpt-oss-20b-hfid
+  namespace: llm-d-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+      # https listener ONLY. Bound to the Gateway as a whole, these model routes
+      # also answer on :80 and they out-prioritise the catch-all redirect
+      # HTTPRoute, so API keys would keep crossing the internet in cleartext.
+      sectionName: https
+  match:
+    model: openai/gpt-oss-20b
+  provider: Custom
+  custom:
+    # vLLM's OpenAI-compatible server. `formats` is required and declares which
+    # provider-native API shapes this backend speaks; enum is
+    # Completions | Responses | Embeddings | Messages | Rerank | Realtime |
+    # AnthropicTokenCount. Add Responses/Embeddings here if you start using them.
+    formats:
+      - type: Completions
+    backendRef:
+      group: inference.networking.k8s.io
+      kind: InferencePool
+      name: gpt-oss-20b
+  visibility: Public

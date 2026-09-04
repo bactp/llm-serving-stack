@@ -1,0 +1,56 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: "172.31.32.97"
+  bindPort: 6443
+nodeRegistration:
+  name: "ip-172-31-32-97"
+  criSocket: "unix:///run/containerd/containerd.sock"
+  # Single-node cluster: no control-plane taint, so llm-d/vLLM pods can schedule here.
+  taints: []
+  kubeletExtraArgs:
+    - name: "node-ip"
+      value: "172.31.32.97"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+kubernetesVersion: "v1.36.4"
+clusterName: "llm-d-single"
+controlPlaneEndpoint: "172.31.32.97:6443"
+networking:
+  podSubnet: "10.244.0.0/16"      # Flannel default
+  serviceSubnet: "10.96.0.0/12"
+  dnsDomain: "cluster.local"
+apiServer:
+  certSANs:
+    - "172.31.32.97"
+    - "3.35.241.155"               # EC2 public IP, for kubectl from outside
+    - "ip-172-31-32-97"
+    - "127.0.0.1"
+    - "localhost"
+etcd:
+  local:
+    dataDir: "/var/lib/etcd"      # EBS root: must survive stop/start
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+# 4 GPUs worth of vLLM pods + system pods; default 110 is enough but headroom is free
+maxPods: 250
+# vLLM images are ~12GB; pulling them one at a time serialises pod startup badly
+serializeImagePulls: false
+maxParallelImagePulls: 3
+# Keep large model-server images cached: only GC when the disk gets genuinely full
+imageGCHighThresholdPercent: 90
+imageGCLowThresholdPercent: 80
+imageMinimumGCAge: "12h"
+evictionHard:
+  memory.available: "2Gi"
+  nodefs.available: "8%"
+  imagefs.available: "8%"
+# vLLM/NCCL want plenty of open files and no CPU throttling surprises
+podPidsLimit: 16384
+featureGates: {}
+rotateCertificates: true
+serverTLSBootstrap: false

@@ -1,0 +1,35 @@
+# DLAMI already ships the NVIDIA driver (580.126.09) and nvidia-container-toolkit
+# (1.18.2), and containerd is already configured with nvidia as default runtime,
+# so the operator only needs to supply the device plugin, NFD/GFD labels and DCGM.
+driver:
+  enabled: false
+toolkit:
+  enabled: false
+operator:
+  defaultRuntime: containerd
+devicePlugin:
+  enabled: true
+gfd:
+  enabled: true
+nfd:
+  enabled: true
+dcgmExporter:
+  enabled: true
+dcgm:
+  enabled: false          # host already runs nv-hostengine on :5555
+migManager:
+  enabled: false          # L4 (Ada) has no MIG
+mig:
+  strategy: none
+gdrcopy:
+  enabled: false
+vgpuManager:
+  enabled: false
+vgpuDeviceManager:
+  enabled: false
+sandboxWorkloads:
+  enabled: false
+kataManager:
+  enabled: false
+vfioManager:
+  enabled: false

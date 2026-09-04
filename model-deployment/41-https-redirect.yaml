@@ -1,0 +1,33 @@
+# Apply this ONLY after `kubectl get certificate -n llm-d-system` shows Ready=True.
+#
+#   kubectl apply -f 41-https-redirect.yaml
+#
+# Sends plain-HTTP callers to https:// so API keys stop crossing the internet in
+# the clear. It attaches to the port-80 listener only. cert-manager's ACME
+# challenge route matches the exact /.well-known/acme-challenge/... path, which
+# beats this "/" prefix match under Gateway API precedence, so renewals keep
+# working. Remove this file's resource if a renewal ever fails.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-to-https
+  namespace: llm-d-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+      sectionName: default
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            # Explicit hostname: a caller using http://<node-ip>/ would otherwise
+            # be redirected to https://<node-ip>/ and fail cert verification.
+            hostname: 3-35-241-155.sslip.io
+            statusCode: 301

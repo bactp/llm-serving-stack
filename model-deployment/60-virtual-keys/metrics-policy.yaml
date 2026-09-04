@@ -1,0 +1,27 @@
+# Adds user_id and tier as labels on every Prometheus metric agentgateway
+# exports, resolved per request from the API key's metadata. This is what turns
+# agentgateway_gen_ai_client_token_usage_* into per-key usage and cost.
+#
+# Requests with no key, or a key minted before ../bin/migrate-keys.sh ran,
+# show up as user_id="unknown" rather than being dropped.
+#
+# The CRD warns that high-cardinality labels cost Prometheus memory. One label
+# per client is fine at this scale; it would not be at thousands of keys.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: per-key-metrics
+  namespace: llm-d-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+  frontend:
+    metrics:
+      attributes:
+        add:
+          - name: user_id
+            expression: 'apiKey.user_id'
+          - name: tier
+            expression: 'apiKey.tier'

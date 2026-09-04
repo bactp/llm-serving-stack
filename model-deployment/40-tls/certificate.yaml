@@ -1,0 +1,23 @@
+# sslip.io resolves any dashed/dotted IP in the hostname back to that IP, so
+# 3-35-241-155.sslip.io -> 3.35.241.155 with no DNS to register. That is what
+# makes a publicly trusted cert possible here without owning a domain.
+#
+# If the Elastic IP ever changes, the hostname changes with it: update this
+# dnsName and the clients' base_url together.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: llm-d-gateway-tls
+  namespace: llm-d-system
+spec:
+  secretName: llm-d-gateway-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - 3-35-241-155.sslip.io
+    # Admin console, see ../50-admin-ui/. sslip.io resolves any label in front of
+    # the embedded IP, so this needs no DNS record - but it is a second SAN, so
+    # cert-manager reissues when it is added or removed.
+    - admin.3-35-241-155.sslip.io
+    - grafana.3-35-241-155.sslip.io

@@ -1,0 +1,42 @@
+# Grafana on its own hostname, same pattern as the admin console.
+#
+# Grafana lives in llm-d-monitoring while the Gateway is in llm-d-system, so the
+# cross-namespace backendRef needs a ReferenceGrant on the receiving side -
+# without it the route reports ResolvedRefs=False/RefNotPermitted.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana
+  namespace: llm-d-system
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+      sectionName: https
+  hostnames:
+    - grafana.3-35-241-155.sslip.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: llmd-grafana
+          namespace: llm-d-monitoring
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-to-grafana
+  namespace: llm-d-monitoring
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: llm-d-system
+  to:
+    - group: ""
+      kind: Service
+      name: llmd-grafana

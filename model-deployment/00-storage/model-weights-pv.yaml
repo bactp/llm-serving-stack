@@ -1,0 +1,55 @@
+# The 123 GiB of HuggingFace weights on the EBS root volume, exposed to pods.
+#
+# Deliberately NOT on /opt/dlami/nvme: that is EC2 instance store and is wiped by
+# every stop/start, which on 2026-09-04 left this PV pointing at an empty directory
+# and every decode pod stuck in ContainerCreating on a FailedMount. EBS survives.
+#
+# The speed cost is smaller than it looks. Weight load is ~4% of pod startup here
+# (2.5s vs a ~58s init dominated by torch.compile), and with 181 GiB of RAM the
+# ~29 GiB of active weights stay in page cache after the first read, so only the
+# first pod start after a node boot pays the slower cold read (~90s at 166 MB/s).
+# The NVMe is used for the torch.compile cache instead - see patch-vllm.yaml -
+# which is the thing that is genuinely ephemeral and genuinely needs the speed.
+#
+# `local` volume rather than hostPath so the binding is explicit and a second node
+# would simply fail to schedule instead of silently mounting an empty directory.
+# Note that ReadWriteMany here is only honest because there is one node; a `local`
+# PV cannot actually be shared across nodes. Adding a second node means replacing
+# this with a node-agnostic source (S3 + a prefetch DaemonSet), not editing it.
+# Mounted read-write: huggingface_hub writes lock files into its cache even in
+# offline mode, and a read-only mount turns that into a crashloop.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: model-weights-ebs
+spec:
+  capacity:
+    storage: 200Gi
+  accessModes:
+    - ReadWriteMany          # single node: kubelet mounts the same dir into every pod
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""       # static binding, keep local-path-provisioner out of it
+  volumeMode: Filesystem
+  local:
+    path: /home/ubuntu/llm-stack/hf-backup
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["ip-172-31-32-97"]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: llm-d-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""       # must be "" to bind the static PV above, not the default SC
+  volumeName: model-weights-ebs
+  resources:
+    requests:
+      storage: 200Gi

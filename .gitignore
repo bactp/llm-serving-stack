@@ -1,0 +1,32 @@
+# ---- Model weights: 123G of HF snapshots, never in git ----
+hf-backup/
+
+# ---- Upstream clone, not our code ----
+# llm-d/ is a plain clone of https://github.com/llm-d/llm-d.git @ v0.9.0.
+# Re-create with:
+#   git clone --branch v0.9.0 https://github.com/llm-d/llm-d.git llm-d
+llm-d/
+
+# ---- Logs ----
+*.log
+# kubeadm-init.log in particular carries the bootstrap token and
+# --certificate-key printed by `kubeadm init`. Never commit it.
+
+# ---- Secrets / credentials ----
+# (30-api-keys/ and 50-admin-ui/ also carry their own .gitignore)
+*.key
+*.pem
+*.crt
+*.p12
+KEYS.txt
+ADMIN-USERS.txt
+kubeconfig
+*.kubeconfig
+.env.local
+
+# ---- Editor / OS noise ----
+*.swp
+*~
+.DS_Store
+.vscode/
+.idea/

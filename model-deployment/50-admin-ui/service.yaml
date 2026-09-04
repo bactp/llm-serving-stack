@@ -1,0 +1,23 @@
+# Fronts the gateway pods' admin listener (UI, /config_dump, /logging).
+#
+# The proxy only binds this port on all interfaces because
+# ../20-gateway/agentgateway-params.yaml sets ADMIN_ADDR=0.0.0.0:15000. With the
+# default 127.0.0.1 bind this Service would exist but never answer.
+#
+# Hand-written rather than added to the Gateway's own Service: that one is owned
+# by the agentgateway controller, and putting an admin port on it would also put
+# the admin listener behind the same LoadBalancer/nodePort as model traffic.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentgateway-admin
+  namespace: llm-d-system
+spec:
+  type: ClusterIP
+  selector:
+    gateway.networking.k8s.io/gateway-name: llm-d-inference-gateway
+  ports:
+    - name: admin
+      port: 15000
+      targetPort: 15000
+      protocol: TCP

@@ -1,0 +1,42 @@
+# Token budgets per tier.
+#
+# `local` means the bucket lives in the proxy with no external rate-limit
+# service. Two consequences worth knowing before trusting these numbers:
+#
+#  1. The bucket is per tier, NOT per key. Every client on `standard` draws from
+#     the same pool. True per-user budgets need rateLimit.global with an Envoy
+#     ratelimit server keyed on user_id - see the README.
+#  2. Token counts are only known once a request finishes, so an over-budget
+#     request is not cut off; the limit applies to the NEXT request (429).
+#
+# `unit` only goes up to Hours, so these are hourly ceilings, not daily quotas.
+# Sized against what this box can physically produce (4x L4, roughly 1-2k output
+# tokens/s aggregate) so they act as runaway protection, not throttling.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: per-tier-token-budget
+  namespace: llm-d-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-d-inference-gateway
+  traffic:
+    rateLimit:
+      conditional:
+        - condition: 'apiKey.tier == "free"'
+          policy:
+            local:
+              - tokens: 200000
+                unit: Hours
+        - condition: 'apiKey.tier == "premium"'
+          policy:
+            local:
+              - tokens: 5000000
+                unit: Hours
+        # No condition: must be last, catches "standard" and anything unmatched.
+        - policy:
+            local:
+              - tokens: 1000000
+                unit: Hours

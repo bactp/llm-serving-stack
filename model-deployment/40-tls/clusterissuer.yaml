@@ -1,0 +1,46 @@
+# Let's Encrypt via HTTP-01, solved through the Gateway API (cert-manager was
+# installed with config.enableGatewayAPI=true). cert-manager creates a temporary
+# HTTPRoute for /.well-known/acme-challenge/... on our Gateway; the listener
+# already allows HTTPRoute from all namespaces, so nothing else is needed.
+#
+# HTTP-01 requires port 80 reachable from the internet, for renewals too - so
+# leave the security group open on 80 even after switching clients to HTTPS.
+#
+# Add `email:` under each `acme:` block to get expiry warnings from Let's Encrypt.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                name: llm-d-inference-gateway
+                namespace: llm-d-system
+---
+# Same thing against the staging CA: untrusted certs, but far looser rate
+# limits. Point the Certificate at this one while debugging validation.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account
+    solvers:
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                name: llm-d-inference-gateway
+                namespace: llm-d-system

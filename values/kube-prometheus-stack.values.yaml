@@ -1,0 +1,78 @@
+# Values for the kube-prometheus-stack release `llmd` in llm-d-monitoring.
+#
+#   helm upgrade llmd prometheus-community/kube-prometheus-stack \
+#     -n llm-d-monitoring -f values/kube-prometheus-stack.values.yaml
+#
+# Captured from the live release on 2026-09-04 (it had been installed with inline
+# --set flags and no values file) and extended with real storage.
+#
+# Before this, both Prometheus and Alertmanager used an emptyDir, so the TSDB was
+# destroyed on any pod restart despite the chart's 10d retention - Grafana only
+# ever showed history since the last restart. The volumeClaimTemplates below use
+# the `local-path` StorageClass, which as of the same day is backed by
+# /var/lib/local-path-provisioner on the EBS root rather than the instance store;
+# pointing these at the old NVMe path would have looked like a fix and changed
+# nothing. 20Gi sized from the live series count: ~63k series at a 15s scrape is
+# roughly 600 MB/day, so 10d retention lands near 7 GB before WAL and index.
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 2Gi
+          storageClassName: local-path
+grafana:
+  adminPassword: admin
+  datasources:
+    datasources.yaml:
+      apiVersion: 1
+      datasources:
+      - access: proxy
+        isDefault: true
+        name: Prometheus
+        type: prometheus
+        url: http://llmd-kube-prometheus-stack-prometheus.llm-d-monitoring.svc.cluster.local:9090
+  service:
+    sessionAffinity: ''
+    type: ClusterIP
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+    datasources:
+      defaultDatasourceEnabled: false
+prometheus:
+  prometheusSpec:
+    maximumStartupDurationSeconds: 300
+    podMonitorNamespaceSelector: {}
+    podMonitorSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    resources:
+      limits:
+        cpu: 4000m
+        memory: 8Gi
+      requests:
+        cpu: 1000m
+        memory: 4Gi
+    ruleNamespaceSelector: {}
+    ruleSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    serviceMonitorSelector: {}
+    serviceMonitorSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+          - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+          storageClassName: local-path
+  service:
+    sessionAffinity: ''
+    type: ClusterIP

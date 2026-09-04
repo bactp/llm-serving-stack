@@ -1,0 +1,23 @@
+# Grafana has its own login, so the gateway-wide Bearer policy just gets in the
+# way here - a browser has no API key. Relaxing it to Optional on this route
+# hands authentication to Grafana itself.
+#
+# Unlike the admin console this route gets no Basic auth on top: doubling up
+# would mean two password prompts for one page. That makes Grafana's own admin
+# password the only thing protecting it - it was rotated off the chart default
+# of admin/admin, see GRAFANA-LOGIN.txt.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: grafana-no-api-key
+  namespace: llm-d-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: grafana
+  traffic:
+    apiKeyAuthentication:
+      secretRef:
+        name: llm-api-keys
+      mode: Optional
